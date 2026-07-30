@@ -1,0 +1,60 @@
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: linkstash
+      MYSQL_USER: linkstash
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+    ports:
+      # Exposed so you can point a GUI client at it if you want to.
+      - "33061:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ulinkstash", "-psecret"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: linkstash
+      DB_USERNAME: linkstash
+      DB_PASSWORD: secret
+      # Keeps `artisan serve` from blocking on a single slow request.
+      PHP_CLI_SERVER_WORKERS: "4"
+    volumes:
+      - ./api:/app
+      - api-vendor:/app/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    ports:
+      - "3000:3000"
+    environment:
+      # The browser talks to the API directly, so this is a host URL.
+      NUXT_PUBLIC_API_BASE: http://localhost:8000/api
+    volumes:
+      - ./web:/app
+      - web-node-modules:/app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  db-data:
+  api-vendor:
+  web-node-modules:
