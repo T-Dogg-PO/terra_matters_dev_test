@@ -18,10 +18,18 @@ if ! grep -q '^APP_KEY=base64:' .env; then
     php artisan key:generate --force
 fi
 
-chmod -R 777 storage bootstrap/cache 2>/dev/null || true
-
 echo "> waiting for mysql at ${DB_HOST}:${DB_PORT}"
-until mysqladmin ping -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USERNAME}" -p"${DB_PASSWORD}" --silent > /dev/null 2>&1; do
+until php -r '
+    try {
+        new PDO(
+            "mysql:host=".getenv("DB_HOST").";port=".getenv("DB_PORT"),
+            getenv("DB_USERNAME"),
+            getenv("DB_PASSWORD")
+        );
+    } catch (Throwable $e) {
+        exit(1);
+    }
+' 2> /dev/null; do
     sleep 2
 done
 echo "> mysql is up"

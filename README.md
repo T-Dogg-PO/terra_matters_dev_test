@@ -41,6 +41,9 @@ docker compose down -v                        # nuke everything, including data
 Both `api/` and `web/` are mounted into their containers, so edit files on your
 machine with your normal editor and the changes apply live.
 
+The test suite runs against an in-memory SQLite database, so running it will not
+touch the seeded data you are looking at in the browser.
+
 ---
 
 ## The codebase
