@@ -22,40 +22,38 @@ class BookmarkController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $bookmarks = Bookmark::query()->with('tags')->get();
+        $query = Bookmark::query()->with('tags');
 
         if ($request->filled('search')) {
             $needle = mb_strtolower((string) $request->input('search'));
 
-            $bookmarks = $bookmarks->filter(function (Bookmark $bookmark) use ($needle) {
-                return str_contains(mb_strtolower($bookmark->title), $needle)
-                    || str_contains(mb_strtolower($bookmark->url), $needle);
+            $query->where(function ($q) use ($needle) {
+                $q->whereRaw('LOWER(title) LIKE ?', ['%' . $needle . '%'])
+                    ->orWhereRaw('LOWER(url) LIKE ?', ['%' . $needle . '%']);
             });
         }
 
         if ($request->filled('tag')) {
             $slug = (string) $request->input('tag');
 
-            $bookmarks = $bookmarks->filter(
-                fn (Bookmark $bookmark) => $bookmark->tags->contains('slug', $slug)
-            );
+            $query->whereHas('tags', function ($tagQuery) use ($slug) {
+                $tagQuery->where('slug', $slug);
+            });
         }
 
-        $total = $bookmarks->count();
         $page = max(1, (int) $request->input('page', 1));
 
-        $items = $bookmarks
-            ->forPage($page, self::PER_PAGE)
-            ->sortByDesc('created_at')
-            ->values();
+        $paginator = $query
+            ->orderByRaw('is_pinned DESC, created_at DESC')
+            ->paginate(self::PER_PAGE, ['*'], 'page', $page);
 
         return response()->json([
-            'data' => BookmarkResource::collection($items),
+            'data' => BookmarkResource::collection($paginator->items()),
             'meta' => [
-                'current_page' => $page,
-                'per_page' => self::PER_PAGE,
-                'total' => $total,
-                'last_page' => max(1, (int) ceil($total / self::PER_PAGE)),
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
             ],
         ]);
     }
